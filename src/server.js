@@ -199,10 +199,12 @@ function serveStatic(res, filePath) {
       'Content-Type': contentType,
       'Content-Length': stats.size
     };
-    if (ext === '.html') {
-      headers['Cache-Control'] = 'no-cache';
+    if (['.html', '.js', '.css'].includes(ext)) {
+      headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+      headers['Pragma'] = 'no-cache';
+      headers['Expires'] = '0';
     } else {
-      headers['Cache-Control'] = 'public, max-age=3600';
+      headers['Cache-Control'] = 'public, max-age=86400';
     }
 
     res.writeHead(200, headers);
