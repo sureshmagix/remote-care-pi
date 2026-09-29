@@ -75,6 +75,7 @@ async function getThrottledStatus() {
         if (hex & 0x80000) issues.push('Soft temperature limit has occurred');
 
         return {
+          available: true,
           code: match[1],
           healthy: (hex & 0xf) === 0,
           activeIssues: issues.filter((_, i) => i < 4),
@@ -84,7 +85,10 @@ async function getThrottledStatus() {
     }
   } catch {}
 
-  return { code: '0x0', healthy: true, activeIssues: [], historicalIssues: [] };
+  // `vcgencmd` is Raspberry Pi firmware tooling. It may be deliberately
+  // absent on non-Pi Linux hosts or minimal images, which must not be shown
+  // as a confirmed healthy power state.
+  return { available: false, code: null, healthy: false, activeIssues: [], historicalIssues: [] };
 }
 
 /**

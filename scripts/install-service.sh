@@ -14,18 +14,27 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-# Detect actual invoking user (when run with sudo)
-TARGET_USER="${SUDO_USER:-$USER}"
-if [ "$TARGET_USER" = "root" ]; then
-  # If executed directly as root, try to detect 'pi' or default user
-  if id "pi" &>/dev/null; then
-    TARGET_USER="pi"
-  fi
-fi
-
 # Resolve script & project root directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+DATA_DIR="$PROJECT_DIR/data"
+
+# Detect the account that should own the service. `sudo bash ...` supplies
+# SUDO_USER; direct root execution falls back to the project owner instead of
+# silently running the web service as root.
+TARGET_USER="${SUDO_USER:-}"
+if [ -z "$TARGET_USER" ] || [ "$TARGET_USER" = "root" ]; then
+  PROJECT_OWNER="$(stat -c '%U' "$PROJECT_DIR")"
+  if [ "$PROJECT_OWNER" != "root" ] && id "$PROJECT_OWNER" &>/dev/null; then
+    TARGET_USER="$PROJECT_OWNER"
+  elif id "pi" &>/dev/null; then
+    TARGET_USER="pi"
+  else
+    echo "Error: Could not determine a non-root service account."
+    echo "Run this command with sudo from the account that owns the project."
+    exit 1
+  fi
+fi
 
 # Detect node binary
 NODE_BIN="$(command -v node || true)"
@@ -37,11 +46,24 @@ if [ -z "$NODE_BIN" ]; then
     NODE_BIN="/usr/local/bin/node"
   else
     echo "Error: Node.js was not found in PATH."
-    echo "Please install Node.js 18+ on your Raspberry Pi first:"
-    echo "  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -"
+    echo "Please install Node.js 20+ on your Raspberry Pi first:"
+    echo "  curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -"
     echo "  sudo apt install -y nodejs"
     exit 1
   fi
+fi
+
+NODE_MAJOR="$("$NODE_BIN" -p "process.versions.node.split('.')[0]" 2>/dev/null || true)"
+case "$NODE_MAJOR" in
+  ''|*[!0-9]*)
+    echo "Error: Unable to determine the installed Node.js version."
+    exit 1
+    ;;
+esac
+if [ "$NODE_MAJOR" -lt 20 ]; then
+  echo "Error: Remote Care Monitor requires Node.js 20 or later (found $($NODE_BIN -v))."
+  echo "Install Node.js 22 LTS, then rerun this installer."
+  exit 1
 fi
 
 echo "Configuration:"
@@ -51,14 +73,25 @@ echo "  Node binary:  $NODE_BIN"
 echo "  Node version: $($NODE_BIN -v)"
 
 # Ensure data directory exists with correct ownership
-mkdir -p "$PROJECT_DIR/data"
-chown -R "$TARGET_USER:$TARGET_USER" "$PROJECT_DIR/data"
+mkdir -p "$DATA_DIR"
+chown -R "$TARGET_USER:$TARGET_USER" "$DATA_DIR"
+chmod 750 "$DATA_DIR"
 
 SERVICE_FILE="/etc/systemd/system/remote-care-pi.service"
 
-sed -e "s|{{USER}}|$TARGET_USER|g" \
-    -e "s|{{DIR}}|$PROJECT_DIR|g" \
-    -e "s|{{NODE_BIN}}|$NODE_BIN|g" \
+escape_sed_replacement() {
+  printf '%s' "$1" | sed -e 's/[\\&|]/\\\\&/g'
+}
+
+SED_USER="$(escape_sed_replacement "$TARGET_USER")"
+SED_DIR="$(escape_sed_replacement "$PROJECT_DIR")"
+SED_DATA_DIR="$(escape_sed_replacement "$DATA_DIR")"
+SED_NODE_BIN="$(escape_sed_replacement "$NODE_BIN")"
+
+sed -e "s|{{USER}}|$SED_USER|g" \
+    -e "s|{{DIR}}|$SED_DIR|g" \
+    -e "s|{{DATA_DIR}}|$SED_DATA_DIR|g" \
+    -e "s|{{NODE_BIN}}|$SED_NODE_BIN|g" \
     "$SCRIPT_DIR/remote-care-pi.service" > "$SERVICE_FILE"
 
 chmod 644 "$SERVICE_FILE"

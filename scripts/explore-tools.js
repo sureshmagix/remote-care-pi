@@ -54,7 +54,12 @@ async function main() {
   console.log(`System Load:     ${(diag.loadAvg || []).join(', ')}`);
   console.log(`Memory:          ${freeMB} MB free / ${totalMB} MB total (${diag.memory.usedPercent}% used)`);
   if (diag.throttled) {
-    console.log(`Throttling:      ${diag.throttled.throttled ? `${colors.red}Under-voltage detected${colors.reset}` : `${colors.green}Optimal power (${diag.throttled.code})${colors.reset}`}`);
+    const throttleText = diag.throttled.available === false
+      ? `${colors.yellow}Firmware sensor unavailable${colors.reset}`
+      : diag.throttled.healthy
+        ? `${colors.green}Optimal power (${diag.throttled.code})${colors.reset}`
+        : `${colors.red}${diag.throttled.activeIssues.join(', ') || 'Throttling flag active'}${colors.reset}`;
+    console.log(`Throttling:      ${throttleText}`);
   }
 
   // 3. Network Adapters Tool

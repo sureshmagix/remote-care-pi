@@ -12,6 +12,7 @@ const testFiles = [
   'tests/checks.test.js',
   'tests/database.test.js',
   'tests/pi-system.test.js',
+  'tests/pi-service.test.js',
   'tests/server.test.js'
 ];
 

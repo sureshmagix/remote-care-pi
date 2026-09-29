@@ -7,6 +7,7 @@
   const updateListeners = new Set();
   const appControlListeners = new Set();
   let eventSource = null;
+  let eventSourceToken = null;
 
   async function request(endpoint, payload = {}) {
     const response = await fetch(endpoint, {
@@ -24,10 +25,13 @@
     return data;
   }
 
-  function initEventSource() {
-    if (eventSource) return;
+  function connectEvents(token) {
+    if (!token) return;
+    if (eventSource && eventSourceToken === token) return;
 
-    eventSource = new EventSource('/api/events');
+    eventSource?.close();
+    eventSource = new EventSource(`/api/events?token=${encodeURIComponent(token)}`);
+    eventSourceToken = token;
 
     eventSource.addEventListener('monitor-update', (event) => {
       try {
@@ -73,12 +77,18 @@
     };
   }
 
-  initEventSource();
+  function disconnectEvents() {
+    eventSource?.close();
+    eventSource = null;
+    eventSourceToken = null;
+  }
 
   window.remoteCare = {
     getSetupState: () => request('/api/setup-state'),
     setupAdmin: (payload) => request('/api/setup-admin', payload),
     login: (payload) => request('/api/login', payload),
+    connectEvents,
+    disconnectEvents,
     logout: (token) => request('/api/logout', { token }),
     getDashboard: (token) => request('/api/dashboard', { token }),
     getCheckHistory: (token, filters) => request('/api/history-list', { token, filters }),

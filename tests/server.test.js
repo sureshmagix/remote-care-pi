@@ -64,6 +64,14 @@ test('HTTP server serves health check, static files, and full REST API lifecycle
   assert.ok(adminData.session?.token);
   const token = adminData.session.token;
 
+  // 4a. Live monitor updates are private to an authenticated browser session.
+  const deniedEvents = await fetch(`${baseUrl}/api/events`);
+  assert.strictEqual(deniedEvents.status, 401);
+  const events = await fetch(`${baseUrl}/api/events?token=${encodeURIComponent(token)}`);
+  assert.strictEqual(events.status, 200);
+  assert.strictEqual(events.headers.get('content-type'), 'text/event-stream');
+  await events.body.cancel();
+
   // 5. Dashboard
   const dashRes = await fetch(`${baseUrl}/api/dashboard`, {
     method: 'POST',

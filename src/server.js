@@ -460,8 +460,7 @@ function handleSse(req, res) {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache, no-transform',
-    'Connection': 'keep-alive',
-    'Access-Control-Allow-Origin': '*'
+    'Connection': 'keep-alive'
   });
   res.write(': connected\n\n');
 
@@ -512,6 +511,11 @@ function createHttpServer(options = {}) {
 
       // Server-Sent Events stream
       if (pathname === '/api/events') {
+        // EventSource cannot attach a request body or custom authorization
+        // header, so its session token is carried in the same-origin URL.
+        // Do not allow unauthenticated clients to observe monitor names,
+        // addresses, notifications, or state transitions on the LAN.
+        requireSession(url.searchParams.get('token'));
         return handleSse(req, res);
       }
 

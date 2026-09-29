@@ -22,11 +22,11 @@ Most Raspberry Pi devices run in **headless mode** (without a display, monitor, 
 
 ## 🚀 Quick Start on Raspberry Pi
 
-### 1. Install Node.js (v18+ LTS or v20+ recommended)
+### 1. Install Node.js (v20+; v22 LTS recommended)
 If you haven't installed Node.js on your Raspberry Pi:
 ```bash
-# Install Node.js 20.x on Raspberry Pi OS / Debian
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+# Install Node.js 22.x on Raspberry Pi OS / Debian
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt update && sudo apt install -y nodejs
 ```
 
@@ -36,11 +36,28 @@ node -v
 npm -v
 ```
 
+> This release requires Node.js 20 or later because its SQLite dependency no
+> longer supports Node 18. Node 22 LTS is the preferred production runtime.
+
+### Raspberry Pi OS compatibility
+
+- Supported: current Raspberry Pi OS Lite or Desktop releases with `systemd`,
+  on 64-bit ARM (`arm64`) or 32-bit ARMv7 (`armv7l`) hardware. This includes
+  Pi Zero 2 W, Pi 3, Pi 4, and Pi 5.
+- Not supported: original Pi Zero / Pi 1 (ARMv6), or Raspberry Pi OS releases
+  that cannot run Node.js 20+.
+- `better-sqlite3` uses a native module. A matching binary is normally used;
+  install build tools once so `npm ci` can compile it when one is unavailable:
+
+```bash
+sudo apt update && sudo apt install -y build-essential python3
+```
+
 ### 2. Install Project Dependencies
 Navigate to the project folder and install dependencies:
 ```bash
 cd remote-care-pi
-npm install
+npm ci --omit=dev
 ```
 
 ### 3. Start the Server Manually (Testing Mode)
@@ -110,7 +127,7 @@ Run these commands from inside the `remote-care-pi` directory:
 | `PORT=8080 npm start` | Runs the server on a custom port (e.g. 8080) |
 | `npm run explore` | Interactive CLI exploring all built-in tools (port, adapters, gateway, ping, tcp, http, hardware) |
 | `npm run dev` | Runs with Node file-watcher (auto-restarts on code edits) |
-| `npm test` | Runs the full 23-test suite (auth, checks, database, Pi diagnostics, port auto-selection, HTTP API) |
+| `npm test` | Runs the full automated suite (auth, checks, database, Pi diagnostics, port auto-selection, authenticated HTTP API) |
 | `npm run lint` | Runs syntax checks across all server, main, and renderer files |
 
 ---

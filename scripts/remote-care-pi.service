@@ -9,8 +9,11 @@ Type=simple
 User={{USER}}
 WorkingDirectory={{DIR}}
 ExecStart={{NODE_BIN}} src/server.js
-Restart=always
+# Restart unexpected failures, but honor an administrator's protected in-app
+# shutdown and normal `systemctl stop` requests.
+Restart=on-failure
 RestartSec=5s
+UMask=0077
 Environment=NODE_ENV=production
 Environment=PORT=3000
 Environment=HOST=0.0.0.0
@@ -20,7 +23,13 @@ SyslogIdentifier=remote-care-pi
 
 # Linux security sandboxing
 NoNewPrivileges=true
+PrivateTmp=true
 ProtectSystem=full
+# The monitor's SQLite database (including WAL files) is the only project
+# path the service needs to modify. This works for project folders under
+# /home as well as /opt.
+ReadWritePaths={{DATA_DIR}}
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 
 [Install]
 WantedBy=multi-user.target

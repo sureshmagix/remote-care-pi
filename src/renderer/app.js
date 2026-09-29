@@ -273,6 +273,7 @@ async function request(action) {
   } catch (error) {
     if (/session has expired/i.test(error.message)) {
       stopDashboardPolling();
+      remoteCare.disconnectEvents();
       clearTimeout(state.refreshTimer);
       state.session = null;
       sessionStorage.removeItem('remote-care-session');
@@ -332,12 +333,13 @@ function renderAuth(setup = null) {
 
 async function openDashboard() {
   state.settings = await request(() => remoteCare.getAppSettings(state.session.token));
+  remoteCare.connectEvents(state.session.token);
   renderShell();
   await refreshDashboard(true);
   startDashboardPolling();
   const control = await request(() => remoteCare.getAppControlState(state.session.token));
   if (control.pendingProtectedQuit) {
-    if (control.canAuthorizeQuit) openQuitDialog('tray');
+    if (control.canAuthorizeQuit) openQuitDialog('service');
     else flash('A Super Admin password is required to quit the monitor.', 'info');
   }
 }
@@ -379,6 +381,7 @@ function renderShell() {
   document.getElementById('profile-btn')?.addEventListener('click', openProfile);
   document.getElementById('logout').addEventListener('click', async () => {
     await remoteCare.logout(state.session.token);
+    remoteCare.disconnectEvents();
     stopLiveClock();
     stopDashboardPolling();
     clearTimeout(state.refreshTimer);
@@ -465,7 +468,7 @@ async function renderOverview(content) {
   const { summary, activeIncidents, notifications } = state.dashboard;
   const overall = overallStatus();
   content.innerHTML = `
-    <header class="page-header"><div><h2>Monitoring overview</h2><p>Local checks continue while this window is hidden in the tray.</p></div><div class="header-tools">${liveClockMarkup()}<div class="status-line"><span class="dot ${overall.className}" id="overall-dot"></span><span id="overall-text">${overall.text}</span></div></div></header>
+    <header class="page-header"><div><h2>Monitoring overview</h2><p>Local checks continue on the Raspberry Pi even when this browser tab is closed.</p></div><div class="header-tools">${liveClockMarkup()}<div class="status-line"><span class="dot ${overall.className}" id="overall-dot"></span><span id="overall-text">${overall.text}</span></div></div></header>
     <section class="stat-grid">
       <article class="card stat"><div class="label">Active monitors</div><div class="number" id="stat-total">${summary.total}</div></article>
       <article class="card stat good"><div class="label">Healthy</div><div class="number" id="stat-healthy">${summary.healthy}</div></article>
@@ -772,20 +775,16 @@ async function renderSettings(content) {
   const settings = state.settings;
   const checked = (name) => settings[name] ? 'checked' : '';
   content.innerHTML = `
-    <header class="page-header"><div><h2>Settings</h2><p>Choose how the monitor behaves in the background and which alerts appear on this device.</p></div>${liveClockMarkup()}</header>
+    <header class="page-header"><div><h2>Settings</h2><p>Choose which alerts appear in authenticated browser sessions on this device.</p></div>${liveClockMarkup()}</header>
     <form id="settings-form" class="settings-form">
-      <article class="card"><div class="panel-title"><h3>Background behavior</h3><span>System tray</span></div><div class="panel-body settings-list">
-        <label class="setting-row"><span><strong>Always run from the system tray</strong><small>Minimizing or closing the dashboard always keeps monitoring active in the background. Quitting requires the Super Admin password.</small></span><input name="minimizeToTray" type="checkbox" checked disabled aria-label="Always enabled" /></label>
-        <label class="setting-row"><span><strong>Show tray reminder toast</strong><small>Show the “still running” reminder when the dashboard is hidden in the tray.</small></span><input name="showTrayReminder" type="checkbox" ${checked('showTrayReminder')} /></label>
+      <article class="card"><div class="panel-title"><h3>Alert notifications</h3><span>Browser and in-app</span></div><div class="panel-body settings-list">
+        <label class="setting-row"><span><strong>Failure and warning alerts</strong><small>Send browser and in-app alerts to signed-in dashboard tabs when a monitor changes to warning or down.</small></span><input name="showFailureNotifications" type="checkbox" ${checked('showFailureNotifications')} /></label>
+        <label class="setting-row"><span><strong>Healthy and recovery alerts</strong><small>Send browser and in-app alerts when a monitor becomes healthy, including its first successful check.</small></span><input name="showRecoveryNotifications" type="checkbox" ${checked('showRecoveryNotifications')} /></label>
+        <label class="setting-row"><span><strong>Notification duration (seconds)</strong><small>Automatically close each in-app notification after this time. Default: 5 seconds; allowed: 1–300 seconds.</small></span><input name="notificationDurationSeconds" type="number" min="1" max="300" step="1" required value="${settings.notificationDurationSeconds}" /></label>
+        <div class="setting-row notification-test"><span><strong>Test browser alert</strong><small>Show a test alert now. Grant notification permission in your browser when prompted.</small></span><button class="button secondary small" id="test-notification" type="button">Show test alert</button></div>
       </div></article>
-      <article class="card"><div class="panel-title"><h3>Alert notifications</h3><span>Desktop and in-app</span></div><div class="panel-body settings-list">
-        <label class="setting-row"><span><strong>Failure and warning alerts</strong><small>Show a desktop popup whenever a monitor changes to warning or down, including while the dashboard is hidden.</small></span><input name="showFailureNotifications" type="checkbox" ${checked('showFailureNotifications')} /></label>
-        <label class="setting-row"><span><strong>Healthy and recovery alerts</strong><small>Show a desktop popup whenever a monitor becomes healthy, including its first successful check.</small></span><input name="showRecoveryNotifications" type="checkbox" ${checked('showRecoveryNotifications')} /></label>
-        <label class="setting-row"><span><strong>Notification duration (seconds)</strong><small>Automatically close each new notification after this time. Default: 5 seconds; allowed: 1–300 seconds. Applies to desktop popups, tray reminders, and in-app toasts.</small></span><input name="notificationDurationSeconds" type="number" min="1" max="300" step="1" required value="${settings.notificationDurationSeconds}" /></label>
-        <div class="setting-row notification-test"><span><strong>Test desktop alert</strong><small>Show a test popup now. This bypasses the two alert toggles so you can verify system permissions and placement.</small></span><button class="button secondary small" id="test-notification" type="button">Show test alert</button></div>
-      </div></article>
-      <article class="card"><div class="panel-title"><h3>Protected exit</h3><span>Super Admin only</span></div><div class="panel-body protected-exit"><div><strong>Quit Remote Care Monitor</strong><p class="helper">To stop local monitoring, confirm the current Super Admin password. Closing this dashboard only sends it back to the system tray.</p></div><button class="button danger" type="button" id="request-quit">Quit app…</button></div></article>
-      <div class="actions"><button class="button" type="submit">Save settings</button><span class="helper settings-help">Alert history remains available on the overview even when a display notification is turned off.</span></div>
+      <article class="card"><div class="panel-title"><h3>Protected exit</h3><span>Super Admin only</span></div><div class="panel-body protected-exit"><div><strong>Stop Remote Care Monitor</strong><p class="helper">Confirm the current Super Admin password to stop monitoring. When installed as a systemd service, the monitor remains enabled for the next boot and can be started again with <code>sudo systemctl start remote-care-pi</code>.</p></div><button class="button danger" type="button" id="request-quit">Stop monitor…</button></div></article>
+      <div class="actions"><button class="button" type="submit">Save settings</button><span class="helper settings-help">Alert history remains available on the overview even when browser notifications are turned off.</span></div>
       <div class="error" id="settings-error"></div>
     </form>`;
   const form = document.getElementById('settings-form');
@@ -793,9 +792,11 @@ async function renderSettings(content) {
     event.preventDefault();
     const error = document.getElementById('settings-error');
     error.textContent = '';
-    const next = Object.fromEntries(Object.keys(settings).map((name) => [name,
-      name === 'notificationDurationSeconds' ? form.elements[name].valueAsNumber : form.elements[name].checked
-    ]));
+    const next = {
+      showFailureNotifications: form.elements.showFailureNotifications.checked,
+      showRecoveryNotifications: form.elements.showRecoveryNotifications.checked,
+      notificationDurationSeconds: form.elements.notificationDurationSeconds.valueAsNumber
+    };
     try {
       state.settings = await request(() => remoteCare.saveAppSettings(state.session.token, next));
       flash('Settings saved.');
@@ -810,7 +811,7 @@ async function renderSettings(content) {
     button.disabled = true;
     try {
       await request(() => remoteCare.testNotification(state.session.token));
-      flash('Test alert requested. Check the top-right of the active display.', 'info', { silent: true });
+      flash('Test alert requested. Check this browser.', 'info', { silent: true });
     } catch (exception) {
       error.textContent = exception.message || 'Unable to show the test alert.';
     } finally {
@@ -833,9 +834,11 @@ async function renderAbout(content) {
   let piMarkup = '';
   if (pi) {
     const tempText = pi.cpuTemperature !== null ? `${pi.cpuTemperature} °C` : 'Sensor unavailable';
-    const throttledText = pi.throttled?.healthy
-      ? 'Healthy (No throttling or undervoltage)'
-      : (pi.throttled?.activeIssues?.join(', ') || 'Throttling flag active');
+    const throttledText = pi.throttled?.available === false
+      ? 'Firmware sensor unavailable'
+      : pi.throttled?.healthy
+        ? 'Healthy (No throttling or undervoltage)'
+        : (pi.throttled?.activeIssues?.join(', ') || 'Throttling flag active');
     const memTotalMb = Math.round(pi.memory.totalBytes / (1024 * 1024));
     const memUsedMb = Math.round(pi.memory.usedBytes / (1024 * 1024));
     const memoryText = `${memUsedMb} MB / ${memTotalMb} MB (${pi.memory.usedPercent}%)`;
@@ -1084,7 +1087,7 @@ function openQuitDialog(source = 'settings') {
   if (document.querySelector('dialog[data-protected-quit]')) return;
   const dialog = document.createElement('dialog');
   dialog.dataset.protectedQuit = 'true';
-  dialog.innerHTML = `<div class="dialog-header"><h3>Quit Remote Care Monitor?</h3><button class="button ghost small" type="button" data-close>Keep running</button></div><form><div class="dialog-body"><div class="quit-warning"><span aria-hidden="true">!</span><div><strong>Monitoring will stop on this device.</strong><p>Closing the app normally only hides it in the system tray. Enter the current Super Admin password to quit.</p></div></div><div class="field"><label for="quit-password">Super Admin password</label><input id="quit-password" name="password" type="password" required autocomplete="current-password" autofocus /></div><div class="error"></div></div><div class="dialog-footer"><button class="button secondary" type="button" data-close>Cancel</button><button class="button danger" type="submit">Quit monitoring</button></div></form>`;
+  dialog.innerHTML = `<div class="dialog-header"><h3>Stop Remote Care Monitor?</h3><button class="button ghost small" type="button" data-close>Keep running</button></div><form><div class="dialog-body"><div class="quit-warning"><span aria-hidden="true">!</span><div><strong>Monitoring will stop on this device.</strong><p>Enter the current Super Admin password to stop the server. A systemd-managed monitor can be started again with <code>sudo systemctl start remote-care-pi</code>.</p></div></div><div class="field"><label for="quit-password">Super Admin password</label><input id="quit-password" name="password" type="password" required autocomplete="current-password" autofocus /></div><div class="error"></div></div><div class="dialog-footer"><button class="button secondary" type="button" data-close>Cancel</button><button class="button danger" type="submit">Stop monitoring</button></div></form>`;
   let authorizing = false;
   let cancellationSent = false;
   const cancelQuit = async () => {
@@ -1215,7 +1218,7 @@ remoteCare.onUpdate((event) => {
     }
   }
   if (event?.type === 'notification') {
-    // The main process displays the popup even when this renderer is hidden.
+    // Browser notifications are handled by the web API client when permitted.
     playNotificationChime(event.event?.kind);
   }
   scheduleRefresh();
