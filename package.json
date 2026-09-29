@@ -1,0 +1,31 @@
+{
+  "name": "remote-care-pi",
+  "version": "1.2.0",
+  "description": "Headless network, internet, target, and system-service monitor tailor-made for Raspberry Pi with LAN web dashboard.",
+  "homepage": "https://archidtech.in",
+  "main": "src/server.js",
+  "author": {
+    "name": "Wiitronics Solutions Pvt Ltd",
+    "email": "support@archidtech.in"
+  },
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node scripts/run-tests.js",
+    "lint": "node --check src/server.js && node --check src/main/database.js && node --check src/main/monitor-engine.js && node --check src/main/checks.js && node --check src/main/pi-system.js && node --check src/renderer/api-client.js && node --check src/renderer/app.js",
+    "service:install": "sudo bash scripts/install-service.sh",
+    "service:uninstall": "sudo bash scripts/uninstall-service.sh",
+    "service:status": "sudo systemctl status remote-care-pi",
+    "service:restart": "sudo systemctl restart remote-care-pi",
+    "service:stop": "sudo systemctl stop remote-care-pi",
+    "service:logs": "sudo journalctl -u remote-care-pi -f -n 50",
+    "explore": "node scripts/explore-tools.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.4.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
