@@ -427,4 +427,22 @@ async function executeCheck(target) {
   }
 }
 
-module.exports = { executeCheck, getNetworkAdapters, getDefaultGateway, runCommand, checkPing, checkTcp, checkHttp, checkSystemService, checkProcess, checkDocker };
+async function listDockerContainers(timeoutMs = 5000) {
+  try {
+    const result = await runCommand('docker', ['ps', '-a', '--format', '{{.Names}}|{{.Image}}|{{.Status}}|{{.State}}'], timeoutMs);
+    if (result.exitCode !== 0 || !result.stdout.trim()) return [];
+    return result.stdout.trim().split('\n').filter(Boolean).map((line) => {
+      const [name, image, status, state] = line.split('|');
+      return {
+        name: (name || '').trim(),
+        image: (image || '').trim(),
+        status: (status || '').trim(),
+        state: (state || '').trim()
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
+module.exports = { executeCheck, getNetworkAdapters, getDefaultGateway, runCommand, checkPing, checkTcp, checkHttp, checkSystemService, checkProcess, checkDocker, listDockerContainers };

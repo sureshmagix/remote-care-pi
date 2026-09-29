@@ -96,6 +96,16 @@ test('HTTP server serves health check, static files, and full REST API lifecycle
   assert.strictEqual(typeof appInfo.raspberryPi.model, 'string');
   assert.ok(appInfo.raspberryPi.memory.totalBytes > 0);
 
+  // 6b. Docker containers API
+  const dockerRes = await fetch(`${baseUrl}/api/docker-containers`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token })
+  });
+  assert.strictEqual(dockerRes.status, 200);
+  const containers = await dockerRes.json();
+  assert.ok(Array.isArray(containers));
+
   // 7. Save Target
   const targetSaveRes = await fetch(`${baseUrl}/api/target-save`, {
     method: 'POST',

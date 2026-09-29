@@ -7,7 +7,7 @@ const net = require('node:net');
 const { LocalDatabase, ROLES } = require('./main/database');
 const { verifyPassword, SessionStore } = require('./main/auth');
 const { MonitorEngine } = require('./main/monitor-engine');
-const { getNetworkAdapters } = require('./main/checks');
+const { getNetworkAdapters, listDockerContainers } = require('./main/checks');
 const { getRaspberryPiDiagnostics } = require('./main/pi-system');
 
 const DEFAULT_PORT = Number.parseInt(process.env.PORT || '3000', 10);
@@ -300,6 +300,12 @@ async function handleApiRequest(req, res, pathname) {
       requireSession(body.token);
       const adapters = await getNetworkAdapters();
       return sendJson(res, 200, adapters);
+    }
+
+    case 'docker-containers': {
+      requireSession(body.token);
+      const containers = await listDockerContainers();
+      return sendJson(res, 200, containers);
     }
 
     case 'target-save': {

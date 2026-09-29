@@ -119,6 +119,7 @@
     },
 
     getNetworkAdapters: (token) => request('/api/network-adapters', { token }),
+    getDockerContainers: (token) => request('/api/docker-containers', { token }),
     saveTarget: (token, target) => request('/api/target-save', { token, target }),
     deleteTarget: (token, targetId) => request('/api/target-delete', { token, targetId }),
     runTarget: (token, targetId) => request('/api/target-run', { token, targetId }),

@@ -917,7 +917,7 @@ function openMonitorDialog(target = null) {
       <div class="field" data-monitor-field="interface"><label>Network interface to monitor</label><select name="interfaceName">${interfaceOptions(target?.interfaceName || 'auto')}</select><span class="helper">Select “Wi-Fi / Wireless” or a specific adapter (e.g. en0) to alert immediately when Wi-Fi is disconnected.</span></div>
       <div class="field" data-monitor-field="service"><label>Service name</label><input name="serviceName" value="${value('serviceName')}" placeholder="mosquitto.service or Mosquitto" /><span class="helper">Linux/Raspberry Pi uses systemd; Windows uses the Windows Service name; macOS uses a launchd label.</span></div>
       <div class="field" data-monitor-field="process"><label>Process name</label><input name="processName" value="${value('processName')}" placeholder="node or python3" /></div>
-      <div class="field" data-monitor-field="docker"><label>Docker container name</label><input name="containerName" value="${value('serviceName') || value('processName')}" placeholder="gateway or wiitronics-ui-1" /><span class="helper">Monitors container status via docker inspect. Alerts if container is stopped or exits.</span></div>
+      <div class="field" data-monitor-field="docker"><label>Docker container name</label><input name="containerName" list="docker-container-list" value="${value('serviceName') || value('processName')}" placeholder="e.g. gateway, server, or wiitronics-ui-1" autocomplete="off" /><datalist id="docker-container-list"></datalist><span class="helper">Monitors container status via docker inspect. Select a detected container or enter any container name.</span></div>
       <div class="two-col"><div class="field"><label>Check every (seconds)</label><input name="intervalSeconds" type="number" min="2" max="86400" value="${value('intervalSeconds', '15')}" required /></div><div class="field"><label>Timeout (milliseconds)</label><input name="timeoutMs" type="number" min="500" max="120000" value="${value('timeoutMs', '3000')}" required /></div></div>
       <div class="two-col"><div class="field"><label>Failures before alert</label><input name="failureThreshold" type="number" min="1" max="10" value="${value('failureThreshold', '2')}" required /></div><div class="field"><label>Successes before recovery</label><input name="recoveryThreshold" type="number" min="1" max="10" value="${value('recoveryThreshold', '1')}" required /></div></div>
       <div class="field"><label>Severity</label><select name="severity"><option value="critical">Critical</option><option value="warning">Warning</option><option value="info">Information</option></select></div>
@@ -935,6 +935,7 @@ function openMonitorDialog(target = null) {
   dialog.querySelectorAll('[data-close]').forEach((button) => button.addEventListener('click', () => dialog.close()));
   dialog.addEventListener('close', () => dialog.remove());
 
+  // Populate network adapters
   if (!Array.isArray(state.adapters)) {
     remoteCare.getNetworkAdapters(state.session.token).then((adapters) => {
       state.adapters = adapters;
@@ -942,6 +943,14 @@ function openMonitorDialog(target = null) {
       if (select) select.innerHTML = interfaceOptions(target?.interfaceName || select.value || 'auto');
     }).catch(() => {});
   }
+
+  // Populate active Docker containers into datalist
+  remoteCare.getDockerContainers(state.session.token).then((containers) => {
+    const list = dialog.querySelector('#docker-container-list');
+    if (list && Array.isArray(containers)) {
+      list.innerHTML = containers.map((c) => `<option value="${escapeHtml(c.name)}">${escapeHtml(c.image)} (${c.status})</option>`).join('');
+    }
+  }).catch(() => {});
 
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
