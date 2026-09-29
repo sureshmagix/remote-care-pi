@@ -16,7 +16,7 @@ Most Raspberry Pi devices run in **headless mode** (without a display, monitor, 
 - **Hardware Health Diagnostics**: Automatically monitors Raspberry Pi SoC CPU temperature, under-voltage/throttling state via `vcgencmd`, memory usage, system load, and network interfaces.
 - **Turnkey Systemd Service**: Runs automatically on boot as a hardened Linux background daemon with auto-restart on failure.
 - **In-Browser CSV Export**: Download monthly audit and history reports directly in your browser without needing desktop file dialogs.
-- **All Core Checks Included**: ICMP Ping, TCP ports, HTTP/HTTPS web endpoints, default gateway, network adapters (`eth0`/`wlan0`), systemd services (`systemctl is-active`), and processes (`pgrep`).
+- **All Core Checks Included**: ICMP Ping, TCP ports, HTTP/HTTPS web endpoints, default gateway, network adapters (`eth0`/`wlan0`), systemd services (`systemctl is-active`), local processes (`pgrep`), and **Docker containers** (`docker inspect`).
 
 ---
 

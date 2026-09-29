@@ -51,3 +51,10 @@ test('system service check reports nonexistent service as down', async () => {
   assert.equal(result.ok, false);
   assert.match(result.message, /not running/i);
 });
+
+test('docker check reports nonexistent container as down', async () => {
+  const { checkDocker } = require('../src/main/checks');
+  const result = await checkDocker('nonexistent_random_container_12345', 2_000);
+  assert.equal(result.ok, false);
+  assert.match(result.message, /not running/i);
+});

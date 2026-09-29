@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 const { passwordRecord, validateUsername, verifyPassword } = require('./auth');
 
 const ROLES = Object.freeze({ SUPER_ADMIN: 'super_admin', VIEWER: 'viewer' });
-const CHECK_TYPES = new Set(['internet', 'interface', 'gateway', 'ping', 'tcp', 'http', 'system_service', 'process']);
+const CHECK_TYPES = new Set(['internet', 'interface', 'gateway', 'ping', 'tcp', 'http', 'system_service', 'process', 'docker']);
 const STATUSES = new Set(['unknown', 'healthy', 'warning', 'down', 'disabled']);
 const HISTORY_STATUSES = new Set(['unknown', 'healthy', 'warning', 'down']);
 const HISTORY_OUTCOMES = new Set(['all', 'success', 'failure']);
@@ -169,6 +169,7 @@ function validateTarget(input) {
   }
   if (type === 'system_service' && !serviceName) throw new Error('A service name is required.');
   if (type === 'process' && !processName) throw new Error('A process name is required.');
+  if (type === 'docker' && !serviceName && !processName) throw new Error('A Docker container name is required.');
 
   const metadata = input.metadata && typeof input.metadata === 'object' ? input.metadata : {};
   return {

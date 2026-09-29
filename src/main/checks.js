@@ -385,6 +385,29 @@ async function checkProcess(processName, timeoutMs) {
   return { ok: active, latencyMs: 0, message: active ? `Process “${processName}” is running.` : `Process “${processName}” is not running.`, details: { processName } };
 }
 
+async function checkDocker(containerName, timeoutMs = 5000) {
+  const name = String(containerName || '').trim();
+  if (!name) return { ok: false, latencyMs: 0, message: 'Docker container name is required.', details: {} };
+  const result = await runCommand('docker', ['inspect', '--format', '{{.State.Status}}', name], timeoutMs);
+  if (result.exitCode !== 0) {
+    const errorMsg = result.error || result.stderr || result.stdout || 'Docker command failed';
+    return {
+      ok: false,
+      latencyMs: 0,
+      message: `Docker container “${name}” is not running (${result.error ? 'docker unavailable' : 'not found'}).`,
+      details: { containerName: name, error: errorMsg.trim() }
+    };
+  }
+  const status = (result.stdout || '').trim().toLowerCase();
+  const isRunning = status === 'running';
+  return {
+    ok: isRunning,
+    latencyMs: 0,
+    message: isRunning ? `Docker container “${name}” is running.` : `Docker container “${name}” is not running (status: ${status || 'stopped'}).`,
+    details: { containerName: name, status: status || 'unknown' }
+  };
+}
+
 async function executeCheck(target) {
   try {
     switch (target.type) {
@@ -396,6 +419,7 @@ async function executeCheck(target) {
       case 'http': return await checkHttp(target.url, target.timeoutMs);
       case 'system_service': return await checkSystemService(target.serviceName, target.timeoutMs);
       case 'process': return await checkProcess(target.processName, target.timeoutMs);
+      case 'docker': return await checkDocker(target.serviceName || target.processName || target.metadata?.containerName, target.timeoutMs);
       default: return { ok: false, latencyMs: null, message: 'Unsupported monitor type.', details: {} };
     }
   } catch (error) {
@@ -403,4 +427,4 @@ async function executeCheck(target) {
   }
 }
 
-module.exports = { executeCheck, getNetworkAdapters, getDefaultGateway, runCommand, checkPing, checkTcp, checkHttp, checkSystemService, checkProcess };
+module.exports = { executeCheck, getNetworkAdapters, getDefaultGateway, runCommand, checkPing, checkTcp, checkHttp, checkSystemService, checkProcess, checkDocker };

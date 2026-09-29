@@ -28,7 +28,7 @@ function escapeHtml(value) {
 }
 
 function prettyType(type) {
-  return ({ internet: 'Internet', interface: 'Network interface', gateway: 'Default gateway', ping: 'ICMP ping', tcp: 'TCP port', http: 'HTTP/HTTPS', system_service: 'Local service', process: 'Local process' }[type] || type);
+  return ({ internet: 'Internet', interface: 'Network interface', gateway: 'Default gateway', ping: 'ICMP ping', tcp: 'TCP port', http: 'HTTP/HTTPS', system_service: 'Local service', process: 'Local process', docker: 'Docker container' }[type] || type);
 }
 
 function prettyTime(value) {
@@ -91,6 +91,7 @@ function targetDestination(target) {
   if (target.type === 'interface') return target.interfaceName === 'auto' ? 'Automatic interface' : target.interfaceName;
   if (target.type === 'system_service') return target.serviceName;
   if (target.type === 'process') return target.processName;
+  if (target.type === 'docker') return `container: ${target.serviceName || target.processName}`;
   return 'Automatic local gateway';
 }
 
@@ -868,7 +869,8 @@ async function renderAbout(content) {
 function monitorFields(type) {
   const visibility = {
     host: ['ping', 'tcp'].includes(type), port: type === 'tcp', url: ['http', 'internet'].includes(type),
-    interface: type === 'interface', service: type === 'system_service', process: type === 'process', dns: type === 'internet'
+    interface: type === 'interface', service: type === 'system_service', process: type === 'process',
+    docker: type === 'docker', dns: type === 'internet'
   };
   document.querySelectorAll('[data-monitor-field]').forEach((element) => element.classList.toggle('hidden', !visibility[element.dataset.monitorField]));
 }
@@ -907,7 +909,7 @@ function openMonitorDialog(target = null) {
     <div class="dialog-header"><h3>${target ? 'Edit monitor' : 'Add monitor'}</h3><button class="button ghost small" type="button" data-close>Close</button></div>
     <form id="monitor-form"><div class="dialog-body">
       <div class="two-col"><div class="field"><label>Name</label><input name="name" required maxlength="80" value="${value('name')}" placeholder="Production API" /></div><div class="field"><label>Location name</label><input name="locationName" required minlength="2" maxlength="100" value="${value('locationName', 'Local device')}" placeholder="e.g. Bengaluru office" /></div></div>
-      <div class="field"><label>Check type</label><select name="type"><option value="internet">Internet connection</option><option value="interface">Network interface</option><option value="gateway">Default gateway</option><option value="ping">ICMP ping</option><option value="tcp">TCP port</option><option value="http">HTTP/HTTPS endpoint</option><option value="system_service">Local system service</option><option value="process">Local process</option></select></div>
+      <div class="field"><label>Check type</label><select name="type"><option value="internet">Internet connection</option><option value="interface">Network interface</option><option value="gateway">Default gateway</option><option value="ping">ICMP ping</option><option value="tcp">TCP port</option><option value="http">HTTP/HTTPS endpoint</option><option value="system_service">Local system service</option><option value="process">Local process</option><option value="docker">Docker container</option></select></div>
       <div class="field" data-monitor-field="host"><label>Host or IP address</label><input name="host" value="${value('host')}" placeholder="192.168.1.20 or api.example.com" /></div>
       <div class="field" data-monitor-field="port"><label>TCP port</label><input name="port" type="number" min="1" max="65535" value="${value('port')}" placeholder="1883" /></div>
       <div class="field" data-monitor-field="url"><label>HTTP/HTTPS URL</label><input name="url" type="url" value="${value('url')}" placeholder="https://api.example.com/health" /></div>
@@ -915,6 +917,7 @@ function openMonitorDialog(target = null) {
       <div class="field" data-monitor-field="interface"><label>Network interface to monitor</label><select name="interfaceName">${interfaceOptions(target?.interfaceName || 'auto')}</select><span class="helper">Select “Wi-Fi / Wireless” or a specific adapter (e.g. en0) to alert immediately when Wi-Fi is disconnected.</span></div>
       <div class="field" data-monitor-field="service"><label>Service name</label><input name="serviceName" value="${value('serviceName')}" placeholder="mosquitto.service or Mosquitto" /><span class="helper">Linux/Raspberry Pi uses systemd; Windows uses the Windows Service name; macOS uses a launchd label.</span></div>
       <div class="field" data-monitor-field="process"><label>Process name</label><input name="processName" value="${value('processName')}" placeholder="node or python3" /></div>
+      <div class="field" data-monitor-field="docker"><label>Docker container name</label><input name="containerName" value="${value('serviceName') || value('processName')}" placeholder="gateway or wiitronics-ui-1" /><span class="helper">Monitors container status via docker inspect. Alerts if container is stopped or exits.</span></div>
       <div class="two-col"><div class="field"><label>Check every (seconds)</label><input name="intervalSeconds" type="number" min="2" max="86400" value="${value('intervalSeconds', '15')}" required /></div><div class="field"><label>Timeout (milliseconds)</label><input name="timeoutMs" type="number" min="500" max="120000" value="${value('timeoutMs', '3000')}" required /></div></div>
       <div class="two-col"><div class="field"><label>Failures before alert</label><input name="failureThreshold" type="number" min="1" max="10" value="${value('failureThreshold', '2')}" required /></div><div class="field"><label>Successes before recovery</label><input name="recoveryThreshold" type="number" min="1" max="10" value="${value('recoveryThreshold', '1')}" required /></div></div>
       <div class="field"><label>Severity</label><select name="severity"><option value="critical">Critical</option><option value="warning">Warning</option><option value="info">Information</option></select></div>
@@ -945,7 +948,11 @@ function openMonitorDialog(target = null) {
     const error = dialog.querySelector('#monitor-error');
     error.textContent = '';
     const values = Object.fromEntries(new FormData(form).entries());
-    const payload = { ...values, id: target?.id, enabled: form.elements.enabled.checked, metadata: { dnsHost: values.dnsHost } };
+    if (values.type === 'docker') {
+      values.serviceName = values.containerName;
+      values.processName = values.containerName;
+    }
+    const payload = { ...values, id: target?.id, enabled: form.elements.enabled.checked, metadata: { dnsHost: values.dnsHost, containerName: values.containerName } };
     try { await request(() => remoteCare.saveTarget(state.session.token, payload)); dialog.close(); await refreshDashboard(true); flash(`Monitor “${values.name}” saved.`); } catch (exception) { error.textContent = exception.message; }
   });
   dialog.showModal();

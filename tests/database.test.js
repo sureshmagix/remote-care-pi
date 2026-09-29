@@ -358,3 +358,31 @@ test('user password change and profile management validate input and enforce con
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test('local database validates and saves docker container targets', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'remote-care-docker-test-'));
+  const database = new LocalDatabase(path.join(directory, 'test.sqlite'));
+  try {
+    const admin = database.createInitialAdmin({ username: 'superadmin', password: 'initial-admin-pwd' });
+    const target = database.saveTarget({
+      name: 'Gateway Container',
+      type: 'docker',
+      serviceName: 'gateway',
+      intervalSeconds: 10,
+      timeoutMs: 3000,
+      severity: 'critical'
+    }, admin.id);
+
+    assert.equal(target.type, 'docker');
+    assert.equal(target.serviceName, 'gateway');
+    assert.equal(target.name, 'Gateway Container');
+
+    assert.throws(() => database.saveTarget({
+      name: 'Invalid Docker',
+      type: 'docker'
+    }, admin.id), /Docker container name is required/i);
+  } finally {
+    database.close();
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
